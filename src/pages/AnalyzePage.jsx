@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { categorizeMessage } from '../utils/llmHelper'
-import { calculateUrgency } from '../utils/urgencyScorer'
 import { getRecommendedAction } from '../utils/templates'
 
 function AnalyzePage() {
@@ -28,11 +27,11 @@ function AnalyzePage() {
     setResults(null)
     
     try {
-      // Run categorization (LLM call)
-      const { category, reasoning } = await categorizeMessage(message)
+      // Run categorization (LLM returns JSON: category, sentiment, priority_score, reasoning)
+      const { category, sentiment, priority_score, reasoning } = await categorizeMessage(message)
       
-      // Calculate urgency (rule-based)
-      const urgency = calculateUrgency(message)
+      // Derive urgency from AI priority_score (1-2 Low, 3 Medium, 4-5 High)
+      const urgency = priority_score >= 4 ? 'High' : priority_score === 3 ? 'Medium' : 'Low'
       
       // Get recommended action (template-based)
       const recommendedAction = getRecommendedAction(category)
@@ -40,6 +39,8 @@ function AnalyzePage() {
       const analysisResult = {
         message,
         category,
+        sentiment,
+        priority_score,
         urgency,
         recommendedAction,
         reasoning,
@@ -138,6 +139,22 @@ function AnalyzePage() {
               </div>
 
               <div>
+                <div className="text-sm font-semibold text-gray-600 mb-1">Sentiment</div>
+                <div className={`inline-block px-4 py-2 rounded-lg font-semibold ${
+                  results.sentiment === 'Angry' ? 'bg-red-200 text-red-900' : 'bg-slate-200 text-slate-800'
+                }`}>
+                  {results.sentiment}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-semibold text-gray-600 mb-1">Priority Score</div>
+                <div className="inline-block bg-amber-100 text-amber-900 px-4 py-2 rounded-lg font-semibold">
+                  {results.priority_score} / 5
+                </div>
+              </div>
+
+              <div>
                 <div className="text-sm font-semibold text-gray-600 mb-1">Urgency Level</div>
                 <div className={`inline-block px-4 py-2 rounded-lg font-semibold ${
                   results.urgency === 'High' ? 'bg-red-200 text-red-900' :
@@ -170,7 +187,7 @@ function AnalyzePage() {
             <div className="mt-6 pt-4 border-t border-gray-200">
               <button
                 onClick={() => {
-                  const text = `Category: ${results.category}\nUrgency: ${results.urgency}\nRecommendation: ${results.recommendedAction}\n\nReasoning: ${results.reasoning}`
+                  const text = `Category: ${results.category}\nSentiment: ${results.sentiment}\nPriority Score: ${results.priority_score}/5\nUrgency: ${results.urgency}\nRecommendation: ${results.recommendedAction}\n\nReasoning: ${results.reasoning}`
                   navigator.clipboard.writeText(text)
                   alert('Results copied to clipboard!')
                 }}
